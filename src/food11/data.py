@@ -24,9 +24,9 @@ from PIL import Image
 
 # --- Config ---------------------------------------------------------------
 
-RAW_DIR = Path("data/food11_raw")
-PROCESSED_DIR = Path("data/food11_processed")
-PROCESSED_MINI_DIR = Path("data/food11_processed_mini")
+RAW_DIR = Path("backup_data/food11_raw_full")
+PROCESSED_DIR = Path("backup_data/food11_processed_full")
+PROCESSED_MINI_DIR = Path("backup_data/food11_processed_mini")
 
 SPLITS = ["training", "evaluation", "validation"]
 
