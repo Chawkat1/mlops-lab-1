@@ -1,5 +1,5 @@
 # MLOps Lab 1 — Food11 Data Pipeline
-
+!NOTE Read the READMELAB2.md this is the one i currently worked on for lab 2 
 prepared by chawkat choumane grp 6 (231736)
 
 MLOps lab project demonstrating data versioning with Git, DVC, and DagsHub, using the Food11 dataset.
