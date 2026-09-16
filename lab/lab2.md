@@ -3,123 +3,6 @@
 
 This lab continues the project started in Lab 1. You now have a git+dvc repo with the raw and processed Food-11 datasets tracked. In this lab you will write the training code, run a local MLflow tracking server, log parameters and metrics for each training run, and compare several runs in the MLflow UI.
 
-> What you need to know:
->
-> - mlflow organises tracking into *experiments* (a named group of runs, e.g. "food11") and *runs* (one training execution with its own params, metrics and artifacts)
-> - a tracking server stores this metadata and serves the UI; without one, mlflow just writes to a local ./mlruns folder
-> - a *param* is a value set before training and fixed for the run (learning rate, batch size, model architecture...); a *metric* is a value produced during or after training that can evolve over time (loss, accuracy...)
-> - autologging can capture most of this automatically for common frameworks, but logging explicitly gives you control over exactly what gets recorded and when
-
-## Environment Setup
-
-### Install mlflow and the training libraries
-
-```bash
-uv add mlflow torch torchvision scikit-learn
-```
-
-> By default `torch`/`torchvision` install the CUDA-enabled build, which is a multi-GB download you don't need if your machine has no NVIDIA GPU (most laptops, all Macs). The mini dataset in this lab trains fine on CPU. To get the much smaller CPU-only wheels instead, add this to `pyproject.toml` **before** running `uv add`:
->
-> ```toml
-> [[tool.uv.index]]
-> name = "pytorch-cpu"
-> url = "https://download.pytorch.org/whl/cpu"
-> explicit = true
->
-> [tool.uv.sources]
-> torch = { index = "pytorch-cpu" }
-> torchvision = { index = "pytorch-cpu" }
-> ```
->
-> Then run the `uv add` command above as usual. If you do have an NVIDIA GPU and want CUDA acceleration, skip this and let uv install the default build.
-
-> Question 1: Look at pyproject.toml and uv.lock. What changed?
-
-### Run a local mlflow tracking server
-
-In its own terminal, from the root of your repo:
-
-```bash
-docker run --rm -it -p 5000:5000 -v "${PWD}:/app" -w /app python:3.12-slim bash
-```
-
-Leave this running and open [http://127.0.0.1:5000](http://127.0.0.1:5000) in your browser. You should see an empty "Default" experiment.
-
-> Question 2: What is `--backend-store-uri` used for? What is `--default-artifact-root` used for? What is the difference between the metadata mlflow stores and the artifacts it stores?
-
-Since `mlflow.db` and `mlruns/` are local run outputs, not code or versioned data, keep them out of git and dvc:
-
-```bash
-echo "mlflow.db" >> .gitignore
-echo "mlruns/" >> .gitignore
-git add .gitignore
-git commit -m "Ignore local mlflow tracking files"
-git push
-```
-
-> Question 3: Why shouldn't `mlflow.db` and `mlruns/` be tracked by git, and why shouldn't they be tracked by dvc either?
-
-### Point your code to the tracking server
-
-Your training script will need to tell mlflow where the tracking server is, and which experiment to log into:
-
-```python
-mlflow.set_tracking_uri("http://127.0.0.1:5000")
-mlflow.set_experiment("food11")
-```
-
-> Question 4: What happens the first time you call `set_experiment` with a name that doesn't exist yet? Check the mlflow UI.
-
-## Training the model
-
-### Training script
-
-Create a file `./src/food11/train.py`. It should:
-
-1. Load a Food-11 dataset with `torchvision.datasets.ImageFolder` and a `DataLoader` (use `food11_processed_mini` while you're developing the script, it's much faster to iterate on).
-2. Build a model by taking a pretrained `resnet18` from `torchvision.models` and replacing its final layer so it outputs 11 classes instead of 1000.
-3. Accept its hyperparameters as command-line arguments, at least: `--dataset` (processed or mini), `--epochs`, `--lr`, `--batch-size`.
-4. Wrap the whole training in `with mlflow.start_run():` and:
-   - log the hyperparameters with `mlflow.log_param(...)` (or `mlflow.log_params({...})`) once, at the start
-   - at the end of every epoch, log `train_loss`, `val_loss` and `val_accuracy` with `mlflow.log_metric(name, value, step=epoch)`
-   - at the end of training, log the final test accuracy and the trained model itself with `mlflow.pytorch.log_model(model, "model")`
-
-```bash
-uv run python ./src/food11/train.py --dataset mini --epochs 5 --lr 0.001 --batch-size 32
-```
-
-> Question 5: What is the difference between `mlflow.log_param` and `mlflow.log_metric`? Why does `log_metric` take a `step` argument and `log_param` doesn't?
-
-> Question 6: Open the run in the mlflow UI. Find the params, the metric charts, and the logged model artifact. Where does the model artifact actually live on disk?
-
-### Run several experiments and compare
-
-Now run the training script several times, changing one hyperparameter at a time, for example:
-
-```bash
-uv run python ./src/food11/train.py --dataset mini --epochs 5 --lr 0.01 --batch-size 32
-uv run python ./src/food11/train.py --dataset mini --epochs 5 --lr 0.001 --batch-size 32
-uv run python ./src/food11/train.py --dataset mini --epochs 5 --lr 0.0001 --batch-size 32
-uv run python ./src/food11/train.py --dataset mini --epochs 5 --lr 0.001 --batch-size 64
-```
-
-> Question 7: In the mlflow UI, open the `food11` experiment. Select these runs and click "Compare". Which learning rate gave the best `val_accuracy`? Is higher always better?
-
-> Question 8: Use the parallel coordinates plot on the compare page to look at `lr`, `batch_size` and `val_accuracy` together. What pattern do you see?
-
-> Question 9: Sort the runs table by `val_accuracy` descending. Which run is the best one? Note its run ID, you'll need it in the next lab.
-
-## Commit your training code
-
-The code is versioned with git; the run metadata and metrics stay in mlflow, not in git or dvc.
-
-```bash
-git add src/food11/train.py pyproject.toml uv.lock
-git commit -m "Add training script with mlflow tracking"
-git push
-```
-
-
 Question 1:
 After installing the training libraries, pyproject.toml was updated to include mlflow, torch, torchvision, and scikit-learn in the project dependencies.
 The uv.lock file was updated with the exact versions of these libraries and all their required dependencies. This allows the same Python environment to be reproduced on another machine.
@@ -133,3 +16,29 @@ Question 3
 mlflow.db and mlruns/ should not be tracked by Git because they are generated local outputs that change after every training run. Tracking them would make the repository large, cluttered, and constantly changing.
 
 They should not be tracked by DVC either because they are MLflow’s local experiment-tracking database and artifact storage, not the versioned Food-11 dataset. DVC is used here to version the dataset, while MLflow is used to record runs, parameters, metrics, and trained-model artifacts.
+
+Question 4
+When mlflow.set_experiment("food11") is called for the first time and no experiment with that name exists, MLflow automatically creates a new experiment called food11. It does not raise an error. The terminal confirmed this with the message:
+
+text
+Experiment with name 'food11' does not exist. Creating a new experiment.
+Afterward, the new food11 experiment appeared in the MLflow UI and was ready to contain training runs.
+
+Question 5
+mlflow.log_param() stores a fixed configuration value for a training run, such as the learning rate, batch size, number of epochs, model architecture, or dataset name. These values are normally chosen before training starts and do not change during the run.
+
+mlflow.log_metric() stores measured results produced during or after training, such as training loss, validation loss, validation accuracy, and test accuracy. These values can change at every epoch.
+
+log_metric() takes a step argument because MLflow needs to know at which point in training the value was measured—for example, at epoch 1, 2, 3, and so on. This allows MLflow to draw charts showing how loss and accuracy evolve over time. log_param() does not need a step because each parameter is a single fixed value for the entire run.
+
+Question 6
+In the MLflow UI, the successful run agreeable-cod-892 contains the logged parameters dataset, epochs, lr, batch_size, model, num_classes, and image_size. The Model metrics tab shows charts for train_loss, val_loss, val_accuracy, and test_accuracy. In this run, training loss decreased throughout training, while validation accuracy reached approximately 0.57 and final test accuracy was approximately 0.57. The run also contains a logged model named model, with status Ready. The model artifact is stored locally under the configured artifact root, in a path similar to mlruns/<experiment_id>/<run_id>/artifacts/model.
+
+Question 7
+After comparing the four runs in MLflow, the learning rate 0.0001 gave the best validation accuracy, reaching 0.707. This run also obtained the best test accuracy, 0.739. A higher learning rate is not always better: lr=0.01 performed poorly, with validation accuracy 0.161 and test accuracy 0.156, likely because the learning updates were too large. For this pretrained ResNet-18 fine-tuning experiment, the smaller learning rate was more stable and produced the best result.
+
+Question 8
+The parallel coordinates plot shows that the best validation accuracy is associated with lr=0.0001 and batch_size=32. The largest learning rate, 0.01, produced the weakest result and highest training loss. With lr=0.001, changing the batch size from 32 to 64 slightly reduced validation accuracy from 0.513 to 0.494. Therefore, the learning rate had a stronger impact on performance than the batch size in these four experiments.
+
+Question 9
+After sorting the runs by val_accuracy in descending order, the best run was victorious-wren-333, with lr=0.0001, batch_size=32, and val_accuracy=0.707. Its run ID is: b0895843421943b88497c9585158c840
