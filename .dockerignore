@@ -1,0 +1,13 @@
+.venv/
+data/
+backup_data/
+mlruns/
+mlflow.db
+.git/
+.dvc/
+__pycache__/
+*.pyc
+.pytest_cache/
+lab/
+README.md
+READMELAB2.md
