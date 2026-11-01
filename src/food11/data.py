@@ -35,7 +35,7 @@ MINI_LIMIT_PER_CATEGORY = 100
 
 # food11 (Kaggle karakaggle/food11) numeric-label -> category name mapping.
 CATEGORY_NAMES = {
-    "0": "Egg",
+    "0": "Bread",
     "1": "Dairy product",
     "2": "Dessert",
     "3": "Egg",
