@@ -48,6 +48,8 @@ CATEGORY_NAMES = {
     "10": "Vegetable-Fruit",
 }
 
+CLASSES = list(CATEGORY_NAMES.values())
+
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 
@@ -77,13 +79,16 @@ def iter_split_images(split_dir: Path):
             yield path
 
 
+def resize_image(img: Image.Image, size: int = 128) -> Image.Image:
+    """Return an RGB image of size x size."""
+    return img.convert("RGB").resize((size, size), Image.LANCZOS)
+
+
 def resize_and_save(src_path: Path, dst_path: Path, size: tuple[int, int]) -> None:
     """Resize an image and save it, converting to RGB to avoid mode issues."""
     dst_path.parent.mkdir(parents=True, exist_ok=True)
     with Image.open(src_path) as img:
-        img = img.convert("RGB")
-        img = img.resize(size, Image.LANCZOS)
-        img.save(dst_path)
+        resize_image(img, size[0]).save(dst_path)
 
 
 # --- Main processing ---------------------------------------------------------

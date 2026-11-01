@@ -13,7 +13,7 @@ import os
 import mlflow
 import numpy as np
 import torch
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from PIL import Image
 from torchvision import transforms
 
@@ -52,6 +52,8 @@ model = None
 @app.on_event("startup")
 def load_model() -> None:
     global model
+    if os.environ.get("SKIP_MODEL"):
+        return
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     model = mlflow.pyfunc.load_model(MODEL_URI)
 
@@ -63,6 +65,8 @@ def health() -> dict:
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)) -> dict:
+    if model is None:
+        raise HTTPException(status_code=503, detail="model not loaded")
     image_bytes = await file.read()
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     input_tensor = _transform(image).unsqueeze(0).numpy()
