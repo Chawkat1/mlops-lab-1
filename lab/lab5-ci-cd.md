@@ -311,9 +311,13 @@ Question 5
 Without `needs`, the jobs run at the same time in parallel. The Docker build would start even if the tests fail, and the run could show a green container check next to a red test job.
 
 Question 6
-[fill in after the runs on GitHub: first run time = ___, second run time (empty commit) = ___]
+The first run took about 4 minutes. After that I pushed an empty commit (`git commit --allow-empty -m "ci"`) and the second run took 1 minute 54 seconds, so about half the time.
 
-What I expect: the second run is faster on the `uv sync` step, because `enable-cache: true` keeps the downloaded packages (torch is big) and the next run takes them from the cache instead of downloading them again. Every run still starts on an empty machine, so the cache is the only thing that carries over.
+Two steps got faster:
+- `uv sync` went from about 25 seconds to about 15 seconds. `enable-cache: true` keeps the downloaded packages (torch is big) and the next run takes them from the cache instead of downloading them again.
+- The `push` job went from about 2 minutes 20 seconds to about 23 seconds. The `docker/build-push-action` step itself only took 4 seconds in the second run, because `cache-from: type=gha` lets Docker reuse the image layers saved by the first run, and nothing had changed in the code.
+
+The `smoke` job did not get faster because it runs a plain `docker build` with no cache. Every run still starts on an empty machine, so the cache is the only thing that carries over.
 
 Question 7
 The commit SHA points to exactly one version of the code, and it never changes. If something breaks I know which commit made the image, and I can go back to the exact previous image. `latest` is just a label that moves every time someone pushes.
@@ -326,9 +330,10 @@ By default a token can have more rights than the job needs. With `permissions:` 
 If a step is compromised (for example a bad third-party action, or a malicious dependency), it can use the token. With write access to everything in the repo it could push code to `main`, change the workflow files, edit or delete releases, and steal or change other secrets. With the small permissions, the damage stays limited to the package.
 
 Question 9
-[fill in after the pull request on GitHub: what the PR page shows]
-
-What I expect to see: the PR page shows the checks `test` and `smoke` with a red cross for the failed test, and a message that required checks have not passed. The merge button is blocked with the branch protection rule, so I could not merge (unless an admin bypasses the rule).
+I changed `"0": "Bread"` to `"0": "Egg"` in `data.py` on a branch called `break-test`, pushed it and opened pull request #1. The PR page showed "Some checks were not successful: 2 failing, 4 skipped checks".
+- `ci / test` failed with a red cross (it showed up twice, once for the `pull_request` event and once for the `push` event, because my workflow runs on both). Both were marked **Required**.
+- `ci / smoke` and `ci / push` were skipped, because they need `test` to pass first. So the broken code never got built into an image.
+- The **Merge pull request** button was greyed out, so I could not merge. The branch rule blocks it until the required checks are green.
 
 For a team this changes a lot. With "everybody runs the tests on their laptop", nothing forces anyone to do it, people forget, and every laptop is a bit different (python version, packages, data). With the pipeline the same checks run on a clean machine for every change, and nobody can merge a broken change by accident.
 
